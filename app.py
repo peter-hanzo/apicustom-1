@@ -22,10 +22,10 @@ app = create_app()
 
 
 @app.route('/', methods=['GET'])
-def runthis():
+def homepage():
     return "Homepage"
 
 
 @app.route('/hello', methods=['GET'])
-def runthis():
+def hello():
     return "Hello"

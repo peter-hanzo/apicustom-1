@@ -19,6 +19,4 @@ RUN pip install --no-cache-dir flask werkzeug ffmpeg-python requests gunicorn
 # EXPOSE 5000
 
 # Run app.py (Flask server) when the container launches
-# CMD ["python", "app.py"]
-# CMD ["gunicorn", "-b", "0.0.0.0:$PORT", "app:app"]
 CMD gunicorn --bind 0.0.0.0:$PORT app:app
