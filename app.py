@@ -59,7 +59,7 @@ def trim_video_to_mp3():
 
     return send_file(trimmed_filepath, as_attachment=True)
 
-@app.route('/add_to_db', methods=['POST'])
+@app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
     data = request.get_json()
     item_name = data['item_name']
