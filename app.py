@@ -30,10 +30,12 @@ def trim_video_to_mp3():
         video_url = data['video_url']
         start_time = data['start_time']
         end_time = data['end_time']
+        audio_bitrate = data.get('audio_bitrate', '128k')
     elif request.method == 'GET':
         video_url = request.args.get('video_url')
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
+        audio_bitrate = request.args.get('audio_bitrate', '128k')
 
     video_filename = str(uuid.uuid4()) + ".mp4"
     video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], video_filename)
@@ -45,7 +47,7 @@ def trim_video_to_mp3():
     trimmed_filename = str(uuid.uuid4()) + ".mp3"
     trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
 
-    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
 
     return send_file(trimmed_filepath, as_attachment=True)
 
