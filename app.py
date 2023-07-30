@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, send_file
 import os
 import ffmpeg
 import requests
-import psycopg2.binary
+import psycopg2
 import os
 
 DB_HOST = os.environ.get('PGHOST')
