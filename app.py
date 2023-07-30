@@ -23,12 +23,17 @@ def homepage():
 def hello():
     return "Hello"
 
-@app.route('/trim_video_to_mp3', methods=['POST'])
+@app.route('/trim_video_to_mp3', methods=['POST', 'GET'])
 def trim_video_to_mp3():
-    data = request.form
-    video_url = data['video_url']
-    start_time = data['start_time']
-    end_time = data['end_time']
+    if request.method == 'POST':
+        data = request.form
+        video_url = data['video_url']
+        start_time = data['start_time']
+        end_time = data['end_time']
+    elif request.method == 'GET':
+        video_url = request.args.get('video_url')
+        start_time = request.args.get('start_time')
+        end_time = request.args.get('end_time')
 
     video_filename = str(uuid.uuid4()) + ".mp4"
     video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], video_filename)
