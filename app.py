@@ -45,7 +45,7 @@ def trim_video_to_mp3():
     trimmed_filename = str(uuid.uuid4()) + ".mp3"
     trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
 
-    ffmpeg.input(video_filepath, ss=start_time, t=end_time).output(trimmed_filepath).run()
+    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
 
     return send_file(trimmed_filepath, as_attachment=True)
 
