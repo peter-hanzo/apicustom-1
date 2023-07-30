@@ -4,8 +4,6 @@ from flask import Flask, request, jsonify, send_file
 import os
 import ffmpeg
 import requests
-from werkzeug.utils import secure_filename
-from scipy.spatial import distance
 
 def create_app():
     app = Flask(__name__, static_folder='uploads', static_url_path='/uploads')
