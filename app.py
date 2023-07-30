@@ -58,36 +58,51 @@ def trim_video_to_mp3():
     ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
 
     return send_file(trimmed_filepath, as_attachment=True)
-
+    
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
-    data = request.get_json()
-    item_name = data['item_name']
-    item_description = data['item_description']
+    if request.method == 'POST':
+        data = request.get_json()
+    elif request.method == 'GET':
+        data = request.args
 
-    try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_DATABASE
-        )
-        cursor = conn.cursor()
+    item_name = data.get('item_name')
+    item_description = data.get('item_description')
 
-        query = "INSERT INTO items (name, description) VALUES (%s, %s);"
-        cursor.execute(query, (item_name, item_description))
-        conn.commit()
+    if item_name and item_description:
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_DATABASE
+            )
+            cursor = conn.cursor()
 
-        cursor.close()
-        conn.close()
+            query = "INSERT INTO items (name, description) VALUES (%s, %s);"
+            cursor.execute(query, (item_name, item_description))
+            conn.commit()
 
-        html_response = "<h1>Item added to the database successfully.</h1>"
-        return html_response
+            cursor.close()
+            conn.close()
 
-    except psycopg2.Error as e:
-        html_response = f"<h1>Error: {str(e)}</h1>"
-        return html_response
+            if request.method == 'POST':
+                return jsonify({"status": "success", "message": "Item added to the database successfully."})
+            elif request.method == 'GET':
+                return "Item added to the database successfully."
+
+        except psycopg2.Error as e:
+            if request.method == 'POST':
+                return jsonify({"status": "error", "message": str(e)})
+            elif request.method == 'GET':
+                return "Error: " + str(e)
+
+    else:
+        if request.method == 'POST':
+            return jsonify({"status": "error", "message": "Item name and description must be provided."})
+        elif request.method == 'GET':
+            return "Error: Item name and description must be provided."
 
 if __name__ == '__main__':
     app.run()
