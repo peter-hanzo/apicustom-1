@@ -13,6 +13,11 @@ WORKDIR /app
 ADD . /app
 
 # Install necessary packages, Flask and ffmpeg-python
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip --version
+RUN python --version
+RUN apt-get install -y build-essential
+RUN apt-get install -y libpq-dev
 RUN pip install --no-cache-dir flask ffmpeg-python requests gunicorn psycopg2
 
 # Make port 5000 available to the world outside this container
