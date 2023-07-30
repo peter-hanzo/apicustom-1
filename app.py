@@ -82,10 +82,12 @@ def add_to_db():
         cursor.close()
         conn.close()
 
-        return jsonify({"status": "success", "message": "Item added to the database successfully."})
+        html_response = "<h1>Item added to the database successfully.</h1>"
+        return html_response
 
     except psycopg2.Error as e:
-        return jsonify({"status": "error", "message": str(e)})
+        html_response = f"<h1>Error: {str(e)}</h1>"
+        return html_response
 
 if __name__ == '__main__':
     app.run()
