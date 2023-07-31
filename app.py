@@ -3,7 +3,7 @@ import uuid
 from flask import Flask, request, jsonify, send_file
 import os
 import ffmpeg
-import yt_dlp
+from pytube import YouTube
 import os
 
 DB_HOST = os.environ.get('PGHOST')
