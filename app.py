@@ -46,28 +46,29 @@ def trim_video_to_mp3():
         audio_bitrate = request.args.get('audio_bitrate', '128k')
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
-    # Download the video using yt_dlp
-    ydl_opts = {
-        'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(id)s.%(ext)s'),
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-    }
+    try:
+        # Download the video using pytube
+        yt = YouTube(video_url)
+        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=True)
-        video_id = info_dict['id']
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp4")
+        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
 
-    trimmed_filename = str(uuid.uuid4()) + f".{output_format}"
-    trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+        if output_format == 'mp3':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+        elif output_format == 'mp4':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        else:
+            return jsonify({"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"})
 
-    if output_format == 'mp3':
-        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
-    elif output_format == 'mp4':
-        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
-    else:
-        return jsonify({"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"})
+        os.remove(video_filepath)
 
-    return send_file(trimmed_filepath, as_attachment=True)
+        return send_file(trimmed_filepath, as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
