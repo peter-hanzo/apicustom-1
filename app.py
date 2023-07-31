@@ -3,8 +3,7 @@ import uuid
 from flask import Flask, request, jsonify, send_file
 import os
 import ffmpeg
-import requests
-import psycopg2
+import yt_dlp
 import os
 
 DB_HOST = os.environ.get('PGHOST')
@@ -39,26 +38,37 @@ def trim_video_to_mp3():
         start_time = data['start_time']
         end_time = data['end_time']
         audio_bitrate = data.get('audio_bitrate', '128k')
+        output_format = data.get('output_format', 'mp3')  # Default to mp3
     elif request.method == 'GET':
         video_url = request.args.get('video_url')
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
         audio_bitrate = request.args.get('audio_bitrate', '128k')
+        output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
-    video_filename = str(uuid.uuid4()) + ".mp4"
-    video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], video_filename)
+    # Download the video using yt_dlp
+    ydl_opts = {
+        'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(id)s.%(ext)s'),
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+    }
 
-    with open(video_filepath, 'wb') as f:
-        response = requests.get(video_url)
-        f.write(response.content)
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(video_url, download=True)
+        video_id = info_dict['id']
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp4")
 
-    trimmed_filename = str(uuid.uuid4()) + ".mp3"
+    trimmed_filename = str(uuid.uuid4()) + f".{output_format}"
     trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
 
-    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+    if output_format == 'mp3':
+        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+    elif output_format == 'mp4':
+        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+    else:
+        return jsonify({"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"})
 
     return send_file(trimmed_filepath, as_attachment=True)
-    
+
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
     if request.method == 'POST':
