@@ -49,13 +49,18 @@ def trim_video_to_mp3():
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
     try:
-        # Download the video using pytube
-        yt = YouTube(video_url)
-        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
-        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+        # Download the video using yt-dlp
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.%(ext)s"),
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(video_url, download=True)
 
-        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
+        video_filename = info_dict['title']
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_filename}.mp4")
+
+        trimmed_filename = f"{video_filename} - Trimmed between {start_time} and {end_time}.{output_format}"
         trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
 
         if output_format == 'mp3':
@@ -67,7 +72,8 @@ def trim_video_to_mp3():
 
         os.remove(video_filepath)
 
-        return send_file(trimmed_filepath, as_attachment=True)
+        response_message = f"Video '{video_filename}' has been successfully trimmed between {start_time} and {end_time}."
+        return render_template_string(response_message)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
