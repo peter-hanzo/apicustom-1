@@ -6,6 +6,7 @@ import ffmpeg
 from pytube import YouTube
 import os
 from joblib import Parallel, delayed
+import shutil
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -79,7 +80,16 @@ def trim_video_to_mp3():
         trimmed_filepaths = Parallel(n_jobs=-1)(delayed(trim_and_convert_video)(video_url, start_time, end_time, audio_bitrate, output_format) for _ in range(5))
 
         # For this example, we just return the first processed video
-        return send_file(trimmed_filepaths[0], as_attachment=True)
+        first_trimmed_filepath = trimmed_filepaths[0]
+
+        # Read the file content into memory
+        with open(first_trimmed_filepath, 'rb') as file:
+            file_content = file.read()
+
+        # Remove the temporary file
+        os.remove(first_trimmed_filepath)
+
+        return send_file(file_content, mimetype='video/mp4', as_attachment=True, download_name='trimmed_video.mp4')
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
