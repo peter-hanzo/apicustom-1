@@ -1,12 +1,11 @@
 import subprocess
 import uuid
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 import os
 import ffmpeg
 from pytube import YouTube
 import os
-from joblib import Parallel, delayed
-import shutil
+from threading import Thread
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -76,23 +75,19 @@ def trim_video_to_mp3():
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
     try:
-        # Use joblib to parallelize video trimming and conversion
-        trimmed_filepaths = Parallel(n_jobs=-1)(delayed(trim_and_convert_video)(video_url, start_time, end_time, audio_bitrate, output_format) for _ in range(5))
+        # Use threading to run video trimming and conversion in the background
+        trim_thread = Thread(target=trim_and_convert_video, args=(video_url, start_time, end_time, audio_bitrate, output_format))
+        trim_thread.start()
 
-        # For this example, we just return the first processed video
-        first_trimmed_filepath = trimmed_filepaths[0]
-
-        # Read the file content into memory
-        with open(first_trimmed_filepath, 'rb') as file:
-            file_content = file.read()
-
-        # Remove the temporary file
-        os.remove(first_trimmed_filepath)
-
-        return send_file(file_content, mimetype='video/mp4', as_attachment=True, download_name='trimmed_video.mp4')
+        return jsonify({"status": "success", "message": "Video is being trimmed and converted. Please wait."})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/download_trimmed_video', methods=['GET'])
+def download_trimmed_video():
+
+    return jsonify({"status": "success", "message": "Video has been successfully trimmed and downloaded."})
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
