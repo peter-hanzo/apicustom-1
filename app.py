@@ -86,7 +86,6 @@ def trim_video_to_mp3():
 
 @app.route('/download_trimmed_video', methods=['GET'])
 def download_trimmed_video():
-
     return jsonify({"status": "success", "message": "Video has been successfully trimmed and downloaded."})
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
