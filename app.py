@@ -1,10 +1,13 @@
+# app.py
+
 import subprocess
 import uuid
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 import os
 import ffmpeg
 from pytube import YouTube
 import os
+from celery import Celery
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -18,15 +21,40 @@ def create_app():
     upload_folder = app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
-
-    @app.after_request
-    def add_success_message(response):
-        response.headers['X-Success-Message'] = 'Video has been successfully trimmed and downloaded.'
-        return response
-
     return app
 
 app = create_app()
+
+# Configure Celery
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
+
+@celery.task
+def trim_and_convert_video(video_url, start_time, end_time, audio_bitrate, output_format):
+    try:
+        yt = YouTube(video_url)
+        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+
+        if output_format == 'mp3':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+        elif output_format == 'mp4':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        else:
+            return {"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"}
+
+        os.remove(video_filepath)
+
+        return trimmed_filepath
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.route('/', methods=['GET'])
 def homepage():
@@ -52,29 +80,25 @@ def trim_video_to_mp3():
         audio_bitrate = request.args.get('audio_bitrate', '128k')
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
-    try:
-        # Download the video using pytube
-        yt = YouTube(video_url)
-        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
-        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+    task = trim_and_convert_video.apply_async(args=[video_url, start_time, end_time, audio_bitrate, output_format])
 
-        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
-        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+    return jsonify({"status": "success", "task_id": task.id})
 
-        if output_format == 'mp3':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
-        elif output_format == 'mp4':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
-        else:
-            return jsonify({"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"})
+@app.route('/check_task_status', methods=['GET'])
+def check_task_status():
+    task_id = request.args.get('task_id')
+    if not task_id:
+        return jsonify({"status": "error", "message": "No task_id provided."})
 
-        os.remove(video_filepath)
+    task = trim_and_convert_video.AsyncResult(task_id)
+    if task.state == 'SUCCESS':
+        trimmed_filepath = task.get()
+        return jsonify({"status": "success", "trimmed_filepath": trimmed_filepath})
 
-        return send_file(trimmed_filepath, as_attachment=True)
+    elif task.state == 'FAILURE':
+        return jsonify({"status": "error", "message": "Task failed. Please check the input parameters and try again."})
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+    return jsonify({"status": "pending"})
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
