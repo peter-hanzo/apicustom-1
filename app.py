@@ -1,11 +1,10 @@
 import subprocess
 import uuid
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, Response
 import os
 import ffmpeg
 from pytube import YouTube
 import os
-from threading import Thread
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -19,12 +18,6 @@ def create_app():
     upload_folder = app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
-
-    @app.after_request
-    def add_success_message(response):
-        response.headers['X-Success-Message'] = 'Video has been successfully trimmed and downloaded.'
-        return response
-
     return app
 
 app = create_app()
@@ -75,18 +68,12 @@ def trim_video_to_mp3():
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
     try:
-        # Use threading to run video trimming and conversion in the background
-        trim_thread = Thread(target=trim_and_convert_video, args=(video_url, start_time, end_time, audio_bitrate, output_format))
-        trim_thread.start()
-
-        return jsonify({"status": "success", "message": "Video is being trimmed and converted. Please wait."})
+        # Use streaming to send the trimmed video directly to the client
+        trimmed_filepath = trim_and_convert_video(video_url, start_time, end_time, audio_bitrate, output_format)
+        return send_file(trimmed_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
-@app.route('/download_trimmed_video', methods=['GET'])
-def download_trimmed_video():
-    return jsonify({"status": "success", "message": "Video has been successfully trimmed and downloaded."})
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
