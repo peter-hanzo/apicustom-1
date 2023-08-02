@@ -5,7 +5,7 @@ import os
 import ffmpeg
 from pytube import YouTube
 import os
-from celery import Celery
+from concurrent.futures import ThreadPoolExecutor
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -19,14 +19,36 @@ def create_app():
     upload_folder = app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
+
+    @app.after_request
+    def add_success_message(response):
+        response.headers['X-Success-Message'] = 'Video has been successfully trimmed and downloaded.'
+        return response
+
     return app
 
 app = create_app()
 
-# Configure Celery to use Redis as the broker
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'  # Update with your Redis server details
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-celery.conf.update(app.config)
+def trim_and_convert_video(video_url, start_time, end_time, audio_bitrate, output_format):
+    # Download the video using pytube
+    yt = YouTube(video_url)
+    video = yt.streams.filter(progressive=True, file_extension='mp4').first()
+    video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+    video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+    trimmed_filename = f"{uuid.uuid4()}.{output_format}"
+    trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+
+    if output_format == 'mp3':
+        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+    elif output_format == 'mp4':
+        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+    else:
+        raise ValueError("Invalid output_format. Supported formats: 'mp3', 'mp4'")
+
+    os.remove(video_filepath)
+
+    return trimmed_filepath
 
 @app.route('/', methods=['GET'])
 def homepage():
@@ -53,44 +75,14 @@ def trim_video_to_mp3():
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
     try:
-        # Create a unique task ID
-        task_id = str(uuid.uuid4())
+        # Use multi-threading for the trimming and conversion process
+        with ThreadPoolExecutor() as executor:
+            trimmed_filepath = executor.submit(trim_and_convert_video, video_url, start_time, end_time, audio_bitrate, output_format).result()
 
-        # Send the task to Celery to handle asynchronously
-        task = trim_and_convert_video.apply_async(args=[video_url, start_time, end_time, audio_bitrate, output_format], task_id=task_id)
-
-        # Return a response with the task ID
-        return jsonify({"status": "success", "message": "Video trimming started.", "task_id": task_id})
+        return send_file(trimmed_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
-
-@celery.task(bind=True)
-def trim_and_convert_video(self, video_url, start_time, end_time, audio_bitrate, output_format):
-    try:
-        # Download the video using pytube
-        yt = YouTube(video_url)
-        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{self.request.id}.mp4")
-        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
-
-        trimmed_filename = f"{self.request.id}.{output_format}"
-        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
-
-        if output_format == 'mp3':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
-        elif output_format == 'mp4':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
-        else:
-            raise ValueError("Invalid output_format. Supported formats: 'mp3', 'mp4'")
-
-        os.remove(video_filepath)
-
-        return trimmed_filepath
-
-    except Exception as e:
-        raise self.retry(exc=e, countdown=10)
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
