@@ -1,8 +1,6 @@
-# app.py
-
 import subprocess
 import uuid
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file
 import os
 import ffmpeg
 from pytube import YouTube
@@ -25,36 +23,10 @@ def create_app():
 
 app = create_app()
 
-# Configure Celery
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+# Configure Celery to use Redis as the broker
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'  # Update with your Redis server details
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
-
-@celery.task
-def trim_and_convert_video(video_url, start_time, end_time, audio_bitrate, output_format):
-    try:
-        yt = YouTube(video_url)
-        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
-        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
-
-        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
-        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
-
-        if output_format == 'mp3':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
-        elif output_format == 'mp4':
-            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
-        else:
-            return {"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"}
-
-        os.remove(video_filepath)
-
-        return trimmed_filepath
-
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 @app.route('/', methods=['GET'])
 def homepage():
@@ -80,25 +52,45 @@ def trim_video_to_mp3():
         audio_bitrate = request.args.get('audio_bitrate', '128k')
         output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
-    task = trim_and_convert_video.apply_async(args=[video_url, start_time, end_time, audio_bitrate, output_format])
+    try:
+        # Create a unique task ID
+        task_id = str(uuid.uuid4())
 
-    return jsonify({"status": "success", "task_id": task.id})
+        # Send the task to Celery to handle asynchronously
+        task = trim_and_convert_video.apply_async(args=[video_url, start_time, end_time, audio_bitrate, output_format], task_id=task_id)
 
-@app.route('/check_task_status', methods=['GET'])
-def check_task_status():
-    task_id = request.args.get('task_id')
-    if not task_id:
-        return jsonify({"status": "error", "message": "No task_id provided."})
+        # Return a response with the task ID
+        return jsonify({"status": "success", "message": "Video trimming started.", "task_id": task_id})
 
-    task = trim_and_convert_video.AsyncResult(task_id)
-    if task.state == 'SUCCESS':
-        trimmed_filepath = task.get()
-        return jsonify({"status": "success", "trimmed_filepath": trimmed_filepath})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
-    elif task.state == 'FAILURE':
-        return jsonify({"status": "error", "message": "Task failed. Please check the input parameters and try again."})
 
-    return jsonify({"status": "pending"})
+@celery.task(bind=True)
+def trim_and_convert_video(self, video_url, start_time, end_time, audio_bitrate, output_format):
+    try:
+        # Download the video using pytube
+        yt = YouTube(video_url)
+        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{self.request.id}.mp4")
+        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+        trimmed_filename = f"{self.request.id}.{output_format}"
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+
+        if output_format == 'mp3':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+        elif output_format == 'mp4':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        else:
+            raise ValueError("Invalid output_format. Supported formats: 'mp3', 'mp4'")
+
+        os.remove(video_filepath)
+
+        return trimmed_filepath
+
+    except Exception as e:
+        raise self.retry(exc=e, countdown=10)
         
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
