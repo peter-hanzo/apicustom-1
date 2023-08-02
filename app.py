@@ -18,6 +18,12 @@ def create_app():
     upload_folder = app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
+
+    @app.after_request
+    def add_success_message(response):
+        response.headers['X-Success-Message'] = 'Video has been successfully trimmed and downloaded.'
+        return response
+
     return app
 
 app = create_app()
@@ -38,15 +44,16 @@ def trim_video_to_mp3():
         start_time = data['start_time']
         end_time = data['end_time']
         audio_bitrate = data.get('audio_bitrate', '128k')
-        output_format = data.get('output_format', 'mp3')
+        output_format = data.get('output_format', 'mp3')  # Default to mp3
     elif request.method == 'GET':
         video_url = request.args.get('video_url')
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
         audio_bitrate = request.args.get('audio_bitrate', '128k')
-        output_format = request.args.get('output_format', 'mp3')
+        output_format = request.args.get('output_format', 'mp3')  # Default to mp3
 
     try:
+        # Download the video using pytube
         yt = YouTube(video_url)
         video = yt.streams.filter(progressive=True, file_extension='mp4').first()
         video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
@@ -64,16 +71,11 @@ def trim_video_to_mp3():
 
         os.remove(video_filepath)
 
-        @app.after_request
-        def add_success_message(response):
-            response.headers['X-Success-Message'] = 'Video has been successfully trimmed and downloaded.'
-            return response
-
         return send_file(trimmed_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
+        
 @app.route('/add_to_db', methods=['POST', 'GET'])
 def add_to_db():
     if request.method == 'POST':
