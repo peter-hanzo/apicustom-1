@@ -36,10 +36,10 @@ def hello():
 
 def download_audio(audio_url, audio_format):
     yt = YouTube(audio_url)
-    audio_stream = yt.streams.filter(only_audio=True, file_extension=audio_format).first()
+    audio_stream = yt.streams.filter(only_audio=True).first()
     
     if not audio_stream:
-        return jsonify({"status": "error", "message": "No audio stream found for the specified format"})
+        return jsonify({"status": "error", "message": "No audio stream found"})
     
     audio_filename = f"{uuid.uuid4()}.{audio_format}"
     audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_filename)
