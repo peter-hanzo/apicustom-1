@@ -104,16 +104,19 @@ def download_audio_route():
     if request.method == 'POST':
         data = request.form
         audio_url = data.get('audio_url')
-        audio_format = audio_url.split('.')[-1].lower()
+        audio_format = data.get('audio_format', 'mp3')  # Default to 'mp3' if not specified
         mp3_bitrate = data.get('mp3_bitrate', '128k')
     elif request.method == 'GET':
         audio_url = request.args.get('audio_url')
-        audio_format = audio_url.split('.')[-1].lower()
+        audio_format = request.args.get('audio_format', 'mp3')  # Default to 'mp3' if not specified
         mp3_bitrate = request.args.get('mp3_bitrate', '128k')
 
     try:
         if audio_format in ['ogg', 'm4a', 'webm', 'mp3']:
-            audio_filepath = download_audio(audio_url, audio_format)
+            if audio_format == 'mp3':
+                audio_filepath = download_audio(audio_url, 'mp3')  # Download the audio as MP3 directly
+            else:
+                audio_filepath = download_audio(audio_url, audio_format)
             
             if audio_format != 'mp3':
                 mp3_filepath = convert_to_mp3(audio_filepath, mp3_bitrate)
