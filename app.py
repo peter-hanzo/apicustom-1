@@ -2,10 +2,9 @@ import subprocess
 import uuid
 from flask import Flask, request, jsonify, Response, send_file, redirect
 import os
-import ffmpeg
 from pytube import YouTube, Stream
 import os
-from pydub import AudioSegment
+from moviepy.editor import *
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -34,30 +33,19 @@ def homepage():
 def hello():
     return "Hello"
 
-def download_audio(audio_url, audio_format):
+def download_audio(audio_url):
     yt = YouTube(audio_url)
     audio_stream = yt.streams.filter(only_audio=True).first()
     
     if not audio_stream:
         return jsonify({"status": "error", "message": "No audio stream found"})
     
-    audio_filename = f"{uuid.uuid4()}.{audio_format}"
+    audio_filename = f"{uuid.uuid4()}.mp3"
     audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_filename)
     
     audio_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=audio_filename)
     
     return audio_filepath
-
-def convert_to_mp3(audio_filepath, mp3_bitrate):
-    audio_format = audio_filepath.split('.')[-1].lower()
-    audio = AudioSegment.from_file(audio_filepath, format=audio_format)
-    
-    mp3_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp3")
-    audio.export(mp3_filepath, format="mp3", bitrate=mp3_bitrate)
-    
-    os.remove(audio_filepath)
-    
-    return mp3_filepath
 
 def download_clip(video_url):
     return YouTube(f"https://www.youtube.com/{video_url[21:]}")
@@ -109,16 +97,12 @@ def download_audio_route():
     if request.method == 'POST':
         data = request.form
         audio_url = data.get('audio_url')
-        mp3_bitrate = data.get('mp3_bitrate', '128k')
     elif request.method == 'GET':
         audio_url = request.args.get('audio_url')
-        mp3_bitrate = request.args.get('mp3_bitrate', '128k')
 
     try:
-        audio_filepath = download_audio(audio_url, 'mp3')  # Download the audio as MP3 directly
-        
-        mp3_filepath = convert_to_mp3(audio_filepath, mp3_bitrate)
-        return send_file(mp3_filepath, as_attachment=True)
+        audio_filepath = download_audio(audio_url)
+        return send_file(audio_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
