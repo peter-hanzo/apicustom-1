@@ -167,7 +167,7 @@ def trim_video_route():
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/download_subtitles', methods=['GET'])
-def download_subtitles():
+def download_subtitles_route():
     video_url = request.args.get('video_url')
     language = request.args.get('language', 'en')  # Default to English if language parameter is not provided
 
