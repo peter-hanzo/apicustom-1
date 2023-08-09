@@ -35,11 +35,13 @@ def hello():
     return "Hello"
 
 def download_audio(audio_url, audio_format):
+    yt = YouTube(audio_url)
+    audio_stream = yt.streams.filter(only_audio=True, file_extension=audio_format).first()
+    
     audio_filename = f"{uuid.uuid4()}.{audio_format}"
     audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_filename)
     
-    # Download the audio file
-    subprocess.run(["wget", audio_url, "-O", audio_filepath], check=True)
+    audio_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=audio_filename)
     
     return audio_filepath
 
