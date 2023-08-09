@@ -90,8 +90,11 @@ def download_video():
     try:
         video = download_youtube_video(video_url)
         video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
-        
-        return redirect(video_stream.url)  # Redirect to the video stream's URL
+
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+        video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+        return send_file(video_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
