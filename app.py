@@ -91,7 +91,7 @@ def download_video():
         video = download_youtube_video(video_url)
         video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
         
-        return send_file(video_stream.url, as_attachment=True)
+        return redirect(video_stream.url)  # Redirect to the video stream's URL
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -163,17 +163,17 @@ def trim_video_route():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-@app.route('/download_subtitles', methods=['POST', 'GET'])
-def download_subtitles_route():
-    if request.method == 'POST':
-        data = request.form
-        video_url = data['video_url']
-    elif request.method == 'GET':
-        video_url = request.args.get('video_url')
+@app.route('/download_subtitles', methods=['GET'])
+def download_subtitles():
+    video_url = request.args.get('video_url')
+    language = request.args.get('language', 'en')  # Default to English if language parameter is not provided
 
     try:
-        subtitles_filepath = download_subtitles(video_url)
-        return send_file(subtitles_filepath, as_attachment=True)
+        yt = YouTube(video_url)
+        caption = yt.captions.get_by_language_code(language)
+        subtitles = caption.generate_srt_captions()
+
+        return jsonify({"status": "success", "subtitles": subtitles})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
