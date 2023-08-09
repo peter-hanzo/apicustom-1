@@ -117,13 +117,22 @@ def download_clip_route():
         clip_url = request.args.get('clip_url')
 
     try:
-        clip = download_clip(clip_url)
+        # Use pytube to get the video stream
+        clip = YouTube(clip_url)
         video_stream = clip.streams.filter(progressive=True, file_extension='mp4').first()
         
-        return send_file(video_stream.url, as_attachment=True)
+        if video_stream is None:
+            return jsonify({"status": "error", "message": "No video stream found"})
+        
+        # Download the video stream
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+        video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+        return send_file(video_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route('/trim_video', methods=['POST', 'GET'])
 def trim_video_route():
