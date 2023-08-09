@@ -155,12 +155,17 @@ def download_subtitles_route():
     try:
         yt = YouTube(video_url)
         caption = yt.captions.get_by_language_code(language)
+        
+        if caption is None:
+            return jsonify({"status": "error", "message": "Subtitles not available for the selected language"})
+        
         subtitles = caption.generate_srt_captions()
 
         return jsonify({"status": "success", "subtitles": subtitles})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
 
 if __name__ == '__main__':
     app.run()
