@@ -154,19 +154,33 @@ def download_subtitles_route():
 
     try:
         yt = YouTube(video_url)
-        captions = yt.captions
-
-        if language in captions.lang_codes:
-            caption = captions[language]
+        
+        # Try to get subtitles for the specified language
+        caption = yt.captions.get_by_language_code(language)
+        
+        if caption:
             subtitles = caption.generate_srt_captions()
             return jsonify({"status": "success", "subtitles": subtitles})
-        elif 'auto' in captions.lang_codes:
-            auto_caption = captions['auto']
-            subtitles = auto_caption.generate_srt_captions()
-            return jsonify({"status": "success", "subtitles": subtitles})
+        elif language != 'auto':
+            # If subtitles for the specified language are not available, and not requested as 'auto',
+            # try to get automated subtitles (language 'a.en' for English)
+            auto_caption = yt.captions.get_by_language_code(f'a.{language}')
+            
+            if auto_caption:
+                subtitles = auto_caption.generate_srt_captions()
+                return jsonify({"status": "success", "subtitles": subtitles})
+            else:
+                return jsonify({"status": "error", "message": f"Subtitles not available for the selected language: {language}"})
         else:
-            return jsonify({"status": "error", "message": "Subtitles not available for the selected language"})
-
+            # If user requested 'auto' language, try to get automated subtitles (language 'auto')
+            auto_caption = yt.captions.get_by_language_code('auto')
+            
+            if auto_caption:
+                subtitles = auto_caption.generate_srt_captions()
+                return jsonify({"status": "success", "subtitles": subtitles})
+            else:
+                return jsonify({"status": "error", "message": "Automated subtitles not available"})
+            
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
