@@ -5,6 +5,7 @@ import os
 from pytube import YouTube, Stream
 import os
 from moviepy.editor import *
+from youtube_transcript_api import YouTubeTranscriptApi
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
@@ -156,30 +157,27 @@ def download_subtitles_route():
         yt = YouTube(video_url)
         
         # Try to get subtitles for the specified language
-        caption = yt.captions.get_by_language_code(language)
-        
-        if caption:
-            subtitles = caption.generate_srt_captions()
+        try:
+            subtitles = YouTubeTranscriptApi.get_transcript(yt.video_id, languages=[language])
             return jsonify({"status": "success", "subtitles": subtitles})
-        elif language != 'auto':
-            # If subtitles for the specified language are not available, and not requested as 'auto',
-            # try to get automated subtitles (language 'a.en' for English)
-            auto_caption = yt.captions.get_by_language_code(f'a.{language}')
-            
-            if auto_caption:
-                subtitles = auto_caption.generate_srt_captions()
-                return jsonify({"status": "success", "subtitles": subtitles})
+        except Exception as e:
+            if language != 'auto':
+                # If subtitles for the specified language are not available, and not requested as 'auto',
+                # try to get automated subtitles (language 'a.en' for English)
+                try:
+                    auto_language = f'a.{language}'
+                    subtitles = YouTubeTranscriptApi.get_transcript(yt.video_id, languages=[auto_language])
+                    return jsonify({"status": "success", "subtitles": subtitles})
+                except Exception as e_auto:
+                    return jsonify({"status": "error", "message": f"Subtitles not available for the selected language: {language}"})
             else:
-                return jsonify({"status": "error", "message": f"Subtitles not available for the selected language: {language}"})
-        else:
-            # If user requested 'auto' language, try to get automated subtitles (language 'auto')
-            auto_caption = yt.captions.get_by_language_code('auto')
-            
-            if auto_caption:
-                subtitles = auto_caption.generate_srt_captions()
-                return jsonify({"status": "success", "subtitles": subtitles})
-            else:
-                return jsonify({"status": "error", "message": "Automated subtitles not available"})
+                # If user requested 'auto' language, try to get automated subtitles (language 'en')
+                try:
+                    auto_language = 'en'
+                    subtitles = YouTubeTranscriptApi.get_transcript(yt.video_id, languages=[auto_language])
+                    return jsonify({"status": "success", "subtitles": subtitles})
+                except Exception as e_auto:
+                    return jsonify({"status": "error", "message": "Automated subtitles not available"})
             
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
