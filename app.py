@@ -6,6 +6,31 @@ from pytube import YouTube, Stream
 import os
 from moviepy.editor import *
 from youtube_transcript_api import YouTubeTranscriptApi
+import ffmpeg
+Here's the updated trim_video_to_mp3 function with the necessary imports:
+
+python
+Copy code
+@app.route('/trim_video_to_mp3', methods=['GET'])
+def trim_video_to_mp3():
+    video_url = request.args.get('video_url')
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+    
+    try:
+        video = download_youtube_video(video_url)
+        video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
+        
+        video_id = video.video_id
+        
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp4")
+        video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_id)
+        
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}_trimmed.mp4")
+        
+        ffmpeg.input(video
+
+
 
 DB_HOST = os.environ.get('PGHOST')
 DB_PORT = os.environ.get('PGPORT')
