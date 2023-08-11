@@ -182,38 +182,45 @@ def trim_video_route():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-@app.route('/trim_video_to_mp3', methods=['GET'])
+@app.route('/trim_video_to_mp3', methods=['POST', 'GET'])
 def trim_video_to_mp3():
-    video_url = request.args.get('video_url')
-    start_time = request.args.get('start_time')
-    end_time = request.args.get('end_time')
-    
+    if request.method == 'POST':
+        data = request.form
+        video_url = data['video_url']
+        start_time = data['start_time']
+        end_time = data['end_time']
+        audio_bitrate = data.get('audio_bitrate', '128k')
+        output_format = data.get('output_format', 'mp3')  # Default to mp3
+    elif request.method == 'GET':
+        video_url = request.args.get('video_url')
+        start_time = request.args.get('start_time')
+        end_time = request.args.get('end_time')
+        audio_bitrate = request.args.get('audio_bitrate', '128k')
+        output_format = request.args.get('output_format', 'mp3')  # Default to mp3
+
     try:
-        video = download_youtube_video(video_url)
-        video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
-        
-        video_id = video.video_id
-        
-        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp4")
-        video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_id)
-        
-        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}_trimmed.mp4")
-        
-        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        # Download the video using pytube
+        yt = YouTube(video_url)
+        video = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
+        video.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_filepath)
+
+        trimmed_filename = f"{uuid.uuid4()}.{output_format}"
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trimmed_filename)
+
+        if output_format == 'mp3':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, audio_bitrate=audio_bitrate).run()
+        elif output_format == 'mp4':
+            ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        else:
+            return jsonify({"status": "error", "message": "Invalid output_format. Supported formats: 'mp3', 'mp4'"})
+
         os.remove(video_filepath)
-        
-        audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp3")
-        audio = AudioFileClip(trimmed_filepath)
-        audio.write_audiofile(audio_filepath)
-        
-        os.remove(trimmed_filepath)
-        
-        return send_file(audio_filepath, as_attachment=True)
+
+        return send_file(trimmed_filepath, as_attachment=True)
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
-
 
 @app.route('/download_subtitles', methods=['GET'])
 def download_subtitles_route():
