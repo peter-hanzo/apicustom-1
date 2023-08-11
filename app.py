@@ -167,6 +167,10 @@ def trim_video_to_mp3():
         video = download_youtube_video(video_url)
         video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
         
+        # Get the video object to extract video_id
+        video_obj = video_stream.video
+        video_id = video_obj.video_id
+        
         trimmed_filepath = trim_video(video_stream, start_time, end_time)
         
         audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp3")
@@ -179,6 +183,7 @@ def trim_video_to_mp3():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route('/download_subtitles', methods=['GET'])
 def download_subtitles_route():
