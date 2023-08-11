@@ -13,7 +13,7 @@ WORKDIR /app
 ADD . /app
 
 # Install necessary packages, Flask and ffmpeg-python
-RUN pip install --no-cache-dir flask ffmpeg-python requests gunicorn psycopg2-binary pytube joblib pydub moviepy youtube_transcript_api
+RUN pip install --no-cache-dir flask ffmpeg-python requests gunicorn psycopg2-binary pytube joblib pydub moviepy youtube_transcript_api ffmpeg
 
 # Make port 5000 available to the world outside this container
 # EXPOSE 5000
