@@ -7,10 +7,7 @@ import os
 from moviepy.editor import *
 from youtube_transcript_api import YouTubeTranscriptApi
 import ffmpeg
-Here's the updated trim_video_to_mp3 function with the necessary imports:
 
-python
-Copy code
 @app.route('/trim_video_to_mp3', methods=['GET'])
 def trim_video_to_mp3():
     video_url = request.args.get('video_url')
