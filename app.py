@@ -58,7 +58,7 @@ def trim_video(video_stream: Stream, start_time, end_time):
     
     trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
     
-    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+    ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath, strict='experimental').run()
     os.remove(video_filepath)
     
     return trimmed_filepath
