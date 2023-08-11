@@ -157,6 +157,29 @@ def trim_video_route():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/trim_video_to_mp3', methods=['GET'])
+def trim_video_to_mp3():
+    video_url = request.args.get('video_url')
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+    
+    try:
+        video = download_youtube_video(video_url)
+        video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
+        
+        trimmed_filepath = trim_video(video_stream, start_time, end_time)
+        
+        audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp3")
+        audio = AudioFileClip(trimmed_filepath)
+        audio.write_audiofile(audio_filepath)
+        
+        os.remove(trimmed_filepath)
+        
+        return send_file(audio_filepath, as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route('/download_subtitles', methods=['GET'])
 def download_subtitles_route():
     video_url = request.args.get('video_url')
