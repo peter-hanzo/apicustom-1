@@ -169,9 +169,15 @@ def trim_video_to_mp3():
         
         video_id = video.video_id
         
-        trimmed_filepath = trim_video(video_stream, start_time, end_time)
+        video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp4")
+        video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video_id)
         
-        audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp3")
+        trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}_trimmed.mp4")
+        
+        ffmpeg.input(video_filepath, ss=start_time, to=end_time).output(trimmed_filepath).run()
+        os.remove(video_filepath)
+        
+        audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video_id}.mp3")
         audio = AudioFileClip(trimmed_filepath)
         audio.write_audiofile(audio_filepath)
         
@@ -181,6 +187,7 @@ def trim_video_to_mp3():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
 
 
 @app.route('/download_subtitles', methods=['GET'])
