@@ -155,11 +155,15 @@ def trim_video_route():
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
 
-    trimmed_filepath = trim_video(video_url, start_time, end_time)
-    if trimmed_filepath:
-        return send_file(trimmed_filepath, as_attachment=True)
-    else:
-        return jsonify({"status": "error", "message": "Error trimming video"})
+    try:
+        trimmed_filepath = trim_video(video_url, start_time, end_time)
+        if trimmed_filepath:
+            return send_file(trimmed_filepath, as_attachment=True)
+        else:
+            return jsonify({"status": "error", "message": "Error trimming video"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route('/trim_video_to_mp3', methods=['POST', 'GET'])
 def trim_video_to_mp3():
