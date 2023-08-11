@@ -54,9 +54,9 @@ def download_clip(video_url):
 
 def trim_video(video: YouTube, start_time, end_time):
     video_stream = video.streams.filter(progressive=True, file_extension='mp4').first()
-    video_stream.download(output_path=app.config['UPLOAD_FOLDER'])
     
     video_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{video.video_id}.mp4")
+    video_stream.download(output_path=app.config['UPLOAD_FOLDER'], filename=video.video_id)
     
     trimmed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}.mp4")
     
@@ -64,6 +64,7 @@ def trim_video(video: YouTube, start_time, end_time):
     os.remove(video_filepath)
     
     return trimmed_filepath
+
 
 
 def download_subtitles(video_url):
